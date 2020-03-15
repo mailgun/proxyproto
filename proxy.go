@@ -14,12 +14,13 @@ type Header struct {
 	HasProxy bool
 	// Contains the complete header minus the CRLF if the proto was UNKNOWN
 	Unknown []byte
-
 	// Source is the ip address of the party that initiated the connection
-	Source net.TCPAddr
+	Source net.Addr
 	// Destination is the ip address the remote party connected to; aka the address
 	// the proxy was listening for connections on.
-	Destination net.TCPAddr
+	Destination net.Addr
+	// TLVs (Type-Length-Value) if any, that were appended to the end of the v2 proto proxy header.
+	TLV map[byte][]byte
 }
 
 const (

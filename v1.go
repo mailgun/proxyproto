@@ -2,6 +2,7 @@ package proxyproto
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -91,7 +92,8 @@ func readUntilCRLF(buf []byte, r io.Reader, idx int) ([]byte, error) {
 // parseV1Header parses the provided v1 proxy protocol header in the form
 // "PROXY TCP4 1.1.1.1 1.1.1.1 2 3" into it's individual parts
 func parseV1Header(buf []byte) (*Header, error) {
-	h := Header{HasProxy: true}
+	var src, dest net.TCPAddr
+	var done bool
 
 	err := split(buf[11:], func(pos int, buf []byte) error {
 		switch pos {
@@ -100,29 +102,36 @@ func parseV1Header(buf []byte) (*Header, error) {
 			if ip == nil {
 				return errors.Errorf("invalid ip '%s' at pos '%d'", buf, pos)
 			}
-			h.Source.IP = ip
+			src.IP = ip
 		case 1:
 			ip := net.ParseIP(string(buf))
 			if ip == nil {
 				return errors.Errorf("invalid ip '%s' at pos '%d'", buf, pos)
 			}
-			h.Destination.IP = ip
+			dest.IP = ip
 		case 2:
 			port, err := strconv.Atoi(string(buf))
 			if err != nil {
 				return errors.Errorf("invalid port '%s' at pos '%d'", buf, pos)
 			}
-			h.Source.Port = port
+			src.Port = port
 		case 3:
 			port, err := strconv.Atoi(string(buf))
 			if err != nil {
 				return errors.Errorf("invalid port '%s' at pos '%d'", buf, pos)
 			}
-			h.Destination.Port = port
+			dest.Port = port
+			done = true
 		}
 		return nil
 	})
-	return &h, err
+	if err != nil {
+		return nil, err
+	}
+	if !done {
+		return nil, fmt.Errorf("address line '%s' corrupted", buf[11:])
+	}
+	return &Header{HasProxy: true, Source: &src, Destination: &dest}, nil
 }
 
 // split takes a given byte buffer and splits on a single space ' ' calling the passed `fn` for each

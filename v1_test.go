@@ -14,54 +14,50 @@ func TestParseV1Header(t *testing.T) {
 	tests := []struct {
 		name    string
 		header  string
-		src     net.TCPAddr
-		dest    net.TCPAddr
+		src     net.Addr
+		dest    net.Addr
 		unknown []byte
 		err     string
 	}{
 		{
 			name:   "TCP4 Minimal",
 			header: "PROXY TCP4 1.1.1.5 1.1.1.6 2 3\r\n",
-			src:    net.TCPAddr{IP: net.ParseIP("1.1.1.5"), Port: 2},
-			dest:   net.TCPAddr{IP: net.ParseIP("1.1.1.6"), Port: 3},
+			src:    &net.TCPAddr{IP: net.ParseIP("1.1.1.5"), Port: 2},
+			dest:   &net.TCPAddr{IP: net.ParseIP("1.1.1.6"), Port: 3},
 		},
 		{
 			name:   "TCP4 Maximal",
 			header: "PROXY TCP4 255.255.255.255 255.255.255.254 65535 65535\r\n",
-			src:    net.TCPAddr{IP: net.ParseIP("255.255.255.255"), Port: 65535},
-			dest:   net.TCPAddr{IP: net.ParseIP("255.255.255.254"), Port: 65535},
+			src:    &net.TCPAddr{IP: net.ParseIP("255.255.255.255"), Port: 65535},
+			dest:   &net.TCPAddr{IP: net.ParseIP("255.255.255.254"), Port: 65535},
 		},
 		{
 			name:   "TCP6 Minimal",
 			header: "PROXY TCP6 ::1 ::2 3 4\r\n",
-			src:    net.TCPAddr{IP: net.ParseIP("::1"), Port: 3},
-			dest:   net.TCPAddr{IP: net.ParseIP("::2"), Port: 4},
+			src:    &net.TCPAddr{IP: net.ParseIP("::1"), Port: 3},
+			dest:   &net.TCPAddr{IP: net.ParseIP("::2"), Port: 4},
 		},
 		{
 			name:   "TCP6 Maximal",
 			header: "PROXY TCP6 0000:0000:0000:0000:0000:0000:0000:0002 0000:0000:0000:0000:0000:0000:0000:0001 65535 65535\r\n",
-			src:    net.TCPAddr{IP: net.ParseIP("0000:0000:0000:0000:0000:0000:0000:0002"), Port: 65535},
-			dest:   net.TCPAddr{IP: net.ParseIP("0000:0000:0000:0000:0000:0000:0000:0001"), Port: 65535},
+			src:    &net.TCPAddr{IP: net.ParseIP("0000:0000:0000:0000:0000:0000:0000:0002"), Port: 65535},
+			dest:   &net.TCPAddr{IP: net.ParseIP("0000:0000:0000:0000:0000:0000:0000:0001"), Port: 65535},
 		},
 		{
 			name:    "UNKNOWN Minimal",
 			header:  "PROXY UNKNOWN\r\n",
 			unknown: []byte("PROXY UNKNOWN"),
-			src:     net.TCPAddr{},
-			dest:    net.TCPAddr{},
 		},
 		{
 			name:    "UNKNOWN Maximal",
 			header:  "PROXY UNKNOWN 0000:0000:0000:0000:0000:0000:0000:0002 0000:0000:0000:0000:0000:0000:0000:0001 65535 65535\r\n",
 			unknown: []byte("PROXY UNKNOWN 0000:0000:0000:0000:0000:0000:0000:0002 0000:0000:0000:0000:0000:0000:0000:0001 65535 65535"),
-			src:     net.TCPAddr{},
-			dest:    net.TCPAddr{},
 		},
 		{
 			name:   "TCP6 Empty",
 			header: "PROXY TCP6\r\n",
-			src:    net.TCPAddr{IP: net.ParseIP("::1"), Port: 3},
-			dest:   net.TCPAddr{IP: net.ParseIP("::2"), Port: 4},
+			src:    &net.TCPAddr{IP: net.ParseIP("::1"), Port: 3},
+			dest:   &net.TCPAddr{IP: net.ParseIP("::2"), Port: 4},
 			err:    "while reading proxy proto identifier: unexpected EOF",
 		},
 		{
@@ -128,6 +124,11 @@ func TestParseV1Header(t *testing.T) {
 			name:   "Invalid dest port",
 			header: "PROXY TCP4 192.168.1.1 192.168.1.1 22 NOT-A-PORT\r\n",
 			err:    "while parsing proxy proto v1 header: invalid port 'NOT-A-PORT' at pos '3'",
+		},
+		{
+			name:   "Corrupted address line",
+			header: "PROXY TCP4 192.168.1.1 192.168.1.1 2345\r\n",
+			err:    "while parsing proxy proto v1 header: address line '192.168.1.1 192.168.1.1 2345' corrupted",
 		},
 	}
 
