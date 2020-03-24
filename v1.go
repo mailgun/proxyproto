@@ -16,14 +16,14 @@ import (
 // 		"PROXY TCP6 XX"
 // 		"PROXY UNKNOWN"
 func readV1Header(buf []byte, r io.Reader) (*Header, error) {
-	// For "UNKNOWN", the rest of the line before the CRLF may be omitted by the
-	// sender, and the receiver must ignore anything presented before the CRLF is found.
+	// For "UNKNOWN", the rest of the line before the cRLF may be omitted by the
+	// sender, and the receiver must ignore anything presented before the cRLF is found.
 	if bytes.Equal(buf[6:13], []byte(v1UnKnownProto)) {
 		b, err := readUntilCRLF(buf, r, 13)
 		if err != nil {
-			return nil, errors.Wrap(err, "while looking for CRLF after UNKNOWN proto")
+			return nil, errors.Wrap(err, "while looking for cRLF after UNKNOWN proto")
 		}
-		return &Header{Unknown: b}, nil
+		return &Header{IsLocal: true, Version: 1, Unknown: b}, nil
 	}
 
 	var idx int
@@ -34,8 +34,8 @@ func readV1Header(buf []byte, r io.Reader) (*Header, error) {
 			return nil, errors.Wrap(err, "while reading tcp4 addresses")
 		}
 
-		// If the optimistic read ended in CRLF then no more bytes to read
-		if bytes.Equal(buf[30:32], []byte(CRLF)) {
+		// If the optimistic read ended in cRLF then no more bytes to read
+		if bytes.Equal(buf[30:32], []byte(cRLF)) {
 			return parseV1Header(buf[0:30])
 		}
 		idx = 32
@@ -48,9 +48,9 @@ func readV1Header(buf []byte, r io.Reader) (*Header, error) {
 			return nil, errors.Wrap(err, "while reading tcp6 addresses")
 		}
 
-		//fmt.Printf("CRLF: %X\n", buf[22:24])
-		// If the optimistic read ended in CRLF then no more bytes to read
-		if bytes.Equal(buf[22:24], []byte(CRLF)) {
+		//fmt.Printf("cRLF: %X\n", buf[22:24])
+		// If the optimistic read ended in cRLF then no more bytes to read
+		if bytes.Equal(buf[22:24], []byte(cRLF)) {
 			return parseV1Header(buf[0:22])
 		}
 		idx = 24
@@ -60,19 +60,19 @@ func readV1Header(buf []byte, r io.Reader) (*Header, error) {
 		return nil, errors.Errorf("unrecognized protocol '%s'", buf[6:10])
 	}
 
-	// else we have more bytes to read until we find the CRLF
+	// else we have more bytes to read until we find the cRLF
 	b, err := readUntilCRLF(buf, r, idx)
 	if err != nil {
-		return nil, errors.Wrap(err, "while looking for CRLF after proto")
+		return nil, errors.Wrap(err, "while looking for cRLF after proto")
 	}
 	return parseV1Header(b)
 }
 
 // readUntilCRLF reads from the reader placing the bytes into `buf` starting at `idx` until
-// it finds the terminating CRLF or we exceed 107 bytes which is the max length of the v1
+// it finds the terminating cRLF or we exceed 107 bytes which is the max length of the v1
 // proxy proto header.
 func readUntilCRLF(buf []byte, r io.Reader, idx int) ([]byte, error) {
-	// Read until we find the CRLF or we hit our max possible header length
+	// Read until we find the cRLF or we hit our max possible header length
 	for idx < 107 {
 		c, err := r.Read(buf[idx : idx+1])
 		if c != 1 {
@@ -81,7 +81,7 @@ func readUntilCRLF(buf []byte, r io.Reader, idx int) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		if bytes.Equal(buf[idx-1:idx+1], []byte(CRLF)) {
+		if bytes.Equal(buf[idx-1:idx+1], []byte(cRLF)) {
 			return buf[0 : idx-1], nil
 		}
 		idx++
@@ -131,7 +131,7 @@ func parseV1Header(buf []byte) (*Header, error) {
 	if !done {
 		return nil, fmt.Errorf("address line '%s' corrupted", buf[11:])
 	}
-	return &Header{HasProxy: true, Source: &src, Destination: &dest}, nil
+	return &Header{IsLocal: false, Version: 1, Source: &src, Destination: &dest}, nil
 }
 
 // split takes a given byte buffer and splits on a single space ' ' calling the passed `fn` for each

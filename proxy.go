@@ -2,6 +2,7 @@ package proxyproto
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"github.com/pkg/errors"
@@ -10,25 +11,53 @@ import (
 )
 
 type Header struct {
-	// True if the proxy header was not UNKNOWN or proto (v2) was not set to LOCAL
-	HasProxy bool
-	// Contains the complete header minus the CRLF if the proto was UNKNOWN
-	Unknown []byte
 	// Source is the ip address of the party that initiated the connection
 	Source net.Addr
 	// Destination is the ip address the remote party connected to; aka the address
 	// the proxy was listening for connections on.
 	Destination net.Addr
-	// TLVs (Type-Length-Value) if any, that were appended to the end of the v2 proto proxy header.
-	TLV map[byte][]byte
+	// True if the proxy header was UNKNOWN (v1) or if proto was set to LOCAL (v2)
+	// In which case Header.Source and Header.Destination will both be nil. TLVs still
+	// maybe available if v2, and Header.Unknown will be populated if v1.
+	IsLocal bool
+	// The version of the proxy protocol parsed
+	Version int
+	// The unparsed TLVs (Type-Length-Value) that were appended to the end of
+	// the v2 proto proxy header.
+	RawTLVs []byte
+	// Contains the complete header minus the cRLF if the proto was UNKNOWN
+	Unknown []byte
 }
 
 const (
 	v1Identifier   = "PROXY "
 	v1UnKnownProto = "UNKNOWN"
-	CRLF           = "\r\n"
+	cRLF           = "\r\n"
 	v2Identifier   = "\r\n\r\n\x00\r\nQUIT\n"
+	tlvHeaderLen   = 3
 )
+
+// ParseTLVs parses the Header.RawTLVS byte string into a TLV map
+func (h Header) ParseTLVs() (map[byte][]byte, error) {
+	tlv := make(map[byte][]byte)
+
+	var offset int
+	for offset+tlvHeaderLen < len(h.RawTLVs) {
+		length := int(binary.BigEndian.Uint16(h.RawTLVs[offset+1 : offset+3]))
+
+		// Begin points to the beginning of the value
+		begin := offset + tlvHeaderLen
+		// End points to the end of the value
+		end := begin + length
+		if end > len(h.RawTLVs) {
+			return nil, fmt.Errorf("TLV '0x%X' length '%d' is larger than trailing header", h.RawTLVs[offset], length)
+		}
+
+		tlv[h.RawTLVs[offset]] = h.RawTLVs[begin:end]
+		offset = offset + end
+	}
+	return tlv, nil
+}
 
 func ReadHeader(r io.Reader) (*Header, error) {
 	var buf [232]byte

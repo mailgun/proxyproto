@@ -61,22 +61,22 @@ func TestParseV1Header(t *testing.T) {
 			err:    "while reading proxy proto identifier: unexpected EOF",
 		},
 		{
-			name:   "TCP6 CRLF Not found",
+			name:   "TCP6 cRLF Not found",
 			header: "PROXY TCP6 0000:0000:0000:0000:0000:0000:0000:0001 0000:0000:0000:0000:0000:0000:0000:0001 65535 65535XXXX\r\n",
-			err:    "while parsing proxy proto v1 header: while looking for CRLF after proto: gave up after 107 bytes",
+			err:    "while parsing proxy proto v1 header: while looking for cRLF after proto: gave up after 107 bytes",
 		},
 		{
-			name:   "UNKNOWN CRLF Not found",
+			name:   "UNKNOWN cRLF Not found",
 			header: "PROXY UNKNOWN 0000:0000:0000:0000:0000:0000:0000:0001 0000:0000:0000:0000:0000:0000:0000:0001 65535 65535X\r\n",
-			err:    "while parsing proxy proto v1 header: while looking for CRLF after UNKNOWN proto: gave up after 107 bytes",
+			err:    "while parsing proxy proto v1 header: while looking for cRLF after UNKNOWN proto: gave up after 107 bytes",
 		},
 		{
-			name:   "UNKNOWN No CRLF",
+			name:   "UNKNOWN No cRLF",
 			header: "PROXY UNKNOWN",
-			err:    "while parsing proxy proto v1 header: while looking for CRLF after UNKNOWN proto: expected to read more bytes, but got none",
+			err:    "while parsing proxy proto v1 header: while looking for cRLF after UNKNOWN proto: expected to read more bytes, but got none",
 		},
 		{
-			name:   "Only CRLF Header",
+			name:   "Only cRLF Header",
 			header: "\r\n",
 			err:    "while reading proxy proto identifier: unexpected EOF",
 		},
@@ -144,6 +144,7 @@ func TestParseV1Header(t *testing.T) {
 			assert.Equal(t, tt.dest, h.Destination)
 			assert.Equal(t, tt.src, h.Source)
 			assert.Equal(t, tt.unknown, h.Unknown)
+			assert.Equal(t, 1, h.Version)
 		})
 	}
 }

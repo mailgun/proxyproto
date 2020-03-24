@@ -9,7 +9,6 @@ import (
 )
 
 const (
-	tlvHeaderLen   = 3
 	ipv4AddressLen = 12
 	ipv6AddressLen = 36
 )
@@ -24,8 +23,8 @@ func readV2Header(buf []byte, r io.Reader) (*Header, error) {
 	}
 
 	// Ensure the version is 2
-	if (buf[13] & 0xF0) != 0x20 {
-		return nil, fmt.Errorf("unexpected version number '%X' at pos '13'", buf[13]&0xF0)
+	if (buf[12] & 0xF0) != 0x20 {
+		return nil, fmt.Errorf("unexpected version number '%X' at pos '13'", buf[12]&0xF0)
 	}
 
 	// The length of the remainder of the header including any TLVs in network byte order
@@ -33,7 +32,7 @@ func readV2Header(buf []byte, r io.Reader) (*Header, error) {
 
 	// The HA proxy implementation does not limit the length of the proxy protocol header plus TLVs as
 	// the proxy protocol is supposed to be used between trusted parties. I feel this is an oversight
-	// and impose a generous limit of 2k here to account for any future TLV data use.
+	// and impose a generous limit of 2k here to account for any future tlv data use.
 	if length > 2048 {
 		return nil, fmt.Errorf("header lengh of '%d' is greater than the allowed 2048 bytes", length)
 	}
@@ -42,27 +41,27 @@ func readV2Header(buf []byte, r io.Reader) (*Header, error) {
 	if length != 0 {
 		// Read the remainder of the header
 		tr = make([]byte, length)
-		if _, err := io.ReadFull(r, buf[13:16]); err != nil {
+		if _, err := io.ReadFull(r, tr); err != nil {
 			return nil, errors.Wrap(err, "while reading proto and length bytes")
 		}
 	}
 
 	var offset int
-	var h Header
+	h := Header{Version: 2}
 
-	switch buf[13] & 0x0F {
+	switch buf[12] & 0x0F {
 	case 0x00: // LOCAL command
+		h.IsLocal = true
 		if tr == nil {
-			return nil, nil
+			return &h, nil
 		}
 	case 0x01: // PROXY command
-		h.HasProxy = true
 		if tr == nil {
 			return nil, errors.New("expected address but got zero length header")
 		}
 
 		// Translate the addresses according to the family
-		switch buf[14] {
+		switch buf[13] {
 		case 0x11, 0x12: // IPV4 (TCP/UDP)
 			if len(tr) < ipv4AddressLen {
 				return nil, fmt.Errorf("expected %d bytes for IPV4 address", ipv4AddressLen)
@@ -74,7 +73,7 @@ func readV2Header(buf []byte, r io.Reader) (*Header, error) {
 			src.Port = int(binary.BigEndian.Uint16(tr[8:10]))
 			dest.Port = int(binary.BigEndian.Uint16(tr[10:12]))
 
-			if (buf[14] & 0x0F) == 0x02 { // UDP
+			if (buf[13] & 0x0F) == 0x02 { // UDP
 				h.Destination = &net.UDPAddr{IP: dest.IP, Port: dest.Port}
 				h.Source = &net.UDPAddr{IP: src.IP, Port: src.Port}
 			} else { // TCP
@@ -93,7 +92,7 @@ func readV2Header(buf []byte, r io.Reader) (*Header, error) {
 			dest.IP = tr[16:32]
 			src.Port = int(binary.BigEndian.Uint16(tr[32:34]))
 			dest.Port = int(binary.BigEndian.Uint16(tr[34:36]))
-			if (buf[14] & 0x0F) == 0x02 { // UDP
+			if (buf[13] & 0x0F) == 0x02 { // UDP
 				h.Destination = &net.UDPAddr{IP: dest.IP, Port: dest.Port}
 				h.Source = &net.UDPAddr{IP: src.IP, Port: src.Port}
 			} else { // TCP
@@ -104,24 +103,13 @@ func readV2Header(buf []byte, r io.Reader) (*Header, error) {
 
 		case 0x31, 0x32: // UNIX (STREAM/DGRAM)
 			// Not implemented by haproxy and I see no need to implement it here, patches welcome!
-			return &h, nil
+			return &h, errors.New("Received UNIX socket proxy command, Currently not supported")
 		}
 	}
 
-	// No TLVs to parse
-	if offset == len(tr) {
-		return &h, nil
-	}
-
-	// Read any TLVs the rest of the header may contain
-	h.TLV = make(map[byte][]byte)
-
-	for offset+tlvHeaderLen < len(tr) {
-		length := int(binary.BigEndian.Uint16(buf[offset+1 : offset+3]))
-		if offset+tlvHeaderLen+length > len(tr) {
-			return nil, fmt.Errorf("TLV '%X' length '%d' is larger than trailing header", tr[offset], length)
-		}
-		h.TLV[tr[offset]] = tr[offset+tlvHeaderLen : length]
+	// If there is trailing data, it should be TLVs
+	if offset != len(tr) {
+		h.RawTLVs = tr[offset:]
 	}
 	return &h, nil
 }
