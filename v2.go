@@ -3,15 +3,28 @@ package proxyproto
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
 	"net"
+
+	"github.com/pkg/errors"
 )
 
 const (
 	ipv4AddressLen = 12
 	ipv6AddressLen = 36
 )
+
+// ReadV2Header assumes the first read will contain the identifier, then reads up until the
+// length of the header as specified by the proxy protocol header. If you are using a
+// bufio.Reader you can peek at the first 13 bytes to ensure the header identifier exists
+// before passing the bufio.Reader to this function.
+func ReadV2Header(r io.Reader) (*Header, error) {
+	var buf [232]byte
+	if _, err := io.ReadFull(r, buf[0:13]); err != nil {
+		return nil, errors.Wrap(err, "while reading proxy proto identifier")
+	}
+	return readV2Header(buf[0:], r)
+}
 
 // readV2Header assumes the passed buf contains the first 13 bytes which should look like
 // the following. (Where X is the proto proxy version and command)
