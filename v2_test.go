@@ -5,7 +5,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/mailgun/proxyproto"
+	"github.com/mailgun/influx/proxyproto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -157,6 +157,23 @@ func TestParseV2Header(t *testing.T) {
 			assert.Equal(t, tt.isLocal, h.IsLocal)
 		})
 	}
+}
+
+func TestReadV2Header(t *testing.T) {
+	//                                                                                      VER  IP/TCP LENGTH
+	header := []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A, 0x21, 0x11, 0x00, 0x0C,
+		// IPV4 -------------|  IPV4 ----------------|   SRC PORT   DEST PORT
+		0x7F, 0x00, 0x00, 0x01, 0x7F, 0x00, 0x00, 0x01, 0xCA, 0x2B, 0x04, 0x01}
+
+	r := bytes.NewReader(header)
+	h, err := proxyproto.ReadV2Header(r)
+	require.NoError(t, err)
+	require.NotNil(t, h)
+	assert.Equal(t, &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 1025}, h.Destination)
+	assert.Equal(t, &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 51755}, h.Source)
+	assert.Equal(t, 2, h.Version)
+	assert.Equal(t, false, h.IsLocal)
+
 }
 
 func TestHeader_ParseTLVs(t *testing.T) {

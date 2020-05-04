@@ -5,9 +5,10 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
 	"net"
+
+	"github.com/pkg/errors"
 )
 
 type Header struct {
@@ -29,11 +30,14 @@ type Header struct {
 	Unknown []byte
 }
 
+var (
+	V1Identifier = []byte("PROXY ")
+	V2Identifier = []byte("\r\n\r\n\x00\r\nQUIT\n")
+)
+
 const (
-	v1Identifier   = "PROXY "
 	v1UnKnownProto = "UNKNOWN"
 	cRLF           = "\r\n"
-	v2Identifier   = "\r\n\r\n\x00\r\nQUIT\n"
 	tlvHeaderLen   = 3
 )
 
@@ -68,7 +72,7 @@ func ReadHeader(r io.Reader) (*Header, error) {
 	}
 
 	// Look for V1 or V2 identifiers
-	if bytes.HasPrefix(buf[0:13], []byte(v2Identifier)) {
+	if bytes.HasPrefix(buf[0:13], V2Identifier) {
 		h, err := readV2Header(buf[0:], r)
 		if err != nil {
 			return nil, errors.Wrap(err, "while parsing proxy proto v2 header")
@@ -76,7 +80,7 @@ func ReadHeader(r io.Reader) (*Header, error) {
 		return h, nil
 	}
 
-	if bytes.HasPrefix(buf[0:13], []byte(v1Identifier)) {
+	if bytes.HasPrefix(buf[0:13], V1Identifier) {
 		h, err := readV1Header(buf[0:], r)
 		if err != nil {
 			return nil, errors.Wrap(err, "while parsing proxy proto v1 header")

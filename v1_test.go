@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mailgun/proxyproto"
+	"github.com/mailgun/influx/proxyproto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
