@@ -133,7 +133,7 @@ func serve(p *args.ArgParser, d interface{}) (int, error) {
 
 		fmt.Printf("Protocol Version: %d\n", h.Version)
 		fmt.Printf("Source Address: %s\n", h.Source.String())
-		fmt.Printf("Source Address: %s\n", h.Destination.String())
+		fmt.Printf("Destination Address: %s\n", h.Destination.String())
 
 		// Your application is now free to read the remainder of the content
 		o, err := ioutil.ReadAll(conn)
